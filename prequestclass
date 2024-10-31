@@ -1,0 +1,55 @@
+import java.sql.*;
+import java.util.Scanner;
+import java.util.Arrays;
+
+public class AllCoursePrereqs { 
+    public static void main(String[] args) { 
+        try (
+            Connection con = DriverManager.getConnection(
+                "jdbc:oracle:thin:@edgar0.cse.lehigh.edu:1521:cse241","star","pw"
+            );
+            Statement s = con.createStatement();
+        ) { 
+            String q;
+            String c;
+            ResultSet result;
+            int maxCourse = 0;
+            q = "SELECT COUNT(*) AS C FROM course";
+            result = s.executeQuery(q);
+            if (!result.next()) System.out.println("Unexpected empty result");
+              //连接准备已完成
+            else maxCourse = Integer.parseInt(result.getString("C"));    //总课程数
+            int numCourse = 0, oldNumCourse = -1;              
+            String[] prereqs = new String [maxCourse];                   //作为待填入的返回值，记录先导课程
+            Scanner krb = new Scanner(System.in);                
+            System.out.print("Input a course id (number): ");
+            String course = krb.next();
+            String courseString = "" + '\'' + course + '\'';
+              //待查询课号已读入
+            while (numCourse != oldNumCourse) {    //直到实在找不到先导课才结束循环查找，表现为 现在查询的课程 的先导课程是其本身，因为逻辑上先找到 先导课程，才会将现有课程更新
+                for (int i = oldNumCourse + 1; i < numCourse; i++) { 
+                    courseString += ", " + '\'' + prereqs[i] + '\'';
+                }
+                oldNumCourse = numCourse;
+                q = "SELECT prereq_id FROM prereq WHERE course_id IN (" + courseString + ")";  
+                result = s.executeQuery(q);        //执行对已准备好的sql语言的数据库查询，并将返回结果存在result对象中。
+                while (result.next()) { 
+                    c = result.getString("prereq_id");
+                    boolean found = false;
+                    for (int i = 0; i < numCourse; i++)
+                        found |= prereqs[i].equals(c);      //这里是java的语法，当临时变c在先导课程数组时，说明产生了环，应该舍弃
+                    if (!found) prereqs[numCourse++] = c;
+                }
+                courseString = "" + '\'' + prereqs[oldNumCourse] + '\'';    //这里初步重置查询语句的输入，将其改为本轮找到的先导课程，因为一般结果为1门，所以在这里先直接
+                                                                        //更新，循环的开始还会进行一次检视，如果本轮是多个结果，则会触发while循环开始的for循环
+            }
+            Arrays.sort(prereqs,0,numCourse);
+            System.out.print("The course that must be taken prior to " + course + " are: ");
+            for (int i = 0; i < numCourse; i++)
+                System.out.print((i==0 ? " " : ", ") + prereqs[i]);
+            System.out.println();
+        } catch (Exception e) { 
+            e.printStackTrace();
+        }
+    }
+}
